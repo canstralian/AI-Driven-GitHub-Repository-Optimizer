@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -6,7 +6,7 @@ export const repositories = pgTable("repositories", {
   id: serial("id").primaryKey(),
   url: text("url").notNull(),
   name: text("name").notNull(),
-  lastAnalyzed: text("last_analyzed").notNull(),
+  lastAnalyzed: timestamp("last_analyzed").notNull().defaultNow(),
   qualityScore: integer("quality_score").notNull(),
   metrics: jsonb("metrics").notNull(),
   recommendations: jsonb("recommendations").notNull(),
@@ -16,7 +16,6 @@ export const repositories = pgTable("repositories", {
 export const insertRepositorySchema = createInsertSchema(repositories).pick({
   url: true,
   name: true,
-  lastAnalyzed: true,
   qualityScore: true,
   metrics: true,
   recommendations: true,
