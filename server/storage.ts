@@ -1,4 +1,4 @@
-import { repositories, type Repository, type InsertRepository } from "@shared/schema";
+import { repositories, githubInstallations, type Repository, type InsertRepository, type GithubInstallation, type InsertGithubInstallation } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -6,6 +6,8 @@ export interface IStorage {
   getRepository(id: number): Promise<Repository | undefined>;
   getRepositoryByUrl(url: string): Promise<Repository | undefined>;
   createRepository(repo: InsertRepository): Promise<Repository>;
+  createGithubInstallation(installation: InsertGithubInstallation): Promise<GithubInstallation>;
+  getGithubInstallation(installationId: number): Promise<GithubInstallation | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -20,12 +22,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRepository(insertRepo: InsertRepository): Promise<Repository> {
-    const now = new Date().toISOString();
     const [repository] = await db
       .insert(repositories)
-      .values({ ...insertRepo, lastAnalyzed: now })
+      .values(insertRepo)
       .returning();
     return repository;
+  }
+
+  async createGithubInstallation(installation: InsertGithubInstallation): Promise<GithubInstallation> {
+    const [created] = await db
+      .insert(githubInstallations)
+      .values(installation)
+      .returning();
+    return created;
+  }
+
+  async getGithubInstallation(installationId: number): Promise<GithubInstallation | undefined> {
+    const [installation] = await db
+      .select()
+      .from(githubInstallations)
+      .where(eq(githubInstallations.installationId, installationId));
+    return installation;
   }
 }
 

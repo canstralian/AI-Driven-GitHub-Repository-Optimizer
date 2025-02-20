@@ -12,17 +12,18 @@ import { apiRequest } from "@/lib/queryClient";
 export default function RepositoryForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const form = useForm({
-    resolver: zodResolver(insertRepositorySchema.pick({ url: true, name: true })),
+    resolver: zodResolver(insertRepositorySchema.pick({ url: true, name: true, installationId: true })),
     defaultValues: {
       url: "",
-      name: ""
+      name: "",
+      installationId: 0
     }
   });
 
   const mutation = useMutation({
-    mutationFn: async (values: { url: string; name: string }) => {
+    mutationFn: async (values: { url: string; name: string; installationId: number }) => {
       const res = await apiRequest("POST", "/api/repositories", values);
       return res.json();
     },
@@ -36,7 +37,7 @@ export default function RepositoryForm() {
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to analyze repository",
+        description: "Failed to analyze repository. Please ensure you've installed the GitHub App and provided a valid repository URL.",
         variant: "destructive"
       });
     }
@@ -65,6 +66,23 @@ export default function RepositoryForm() {
               <FormLabel>Repository Name</FormLabel>
               <FormControl>
                 <Input placeholder="My Repository" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="installationId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>GitHub App Installation ID</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  placeholder="Installation ID from GitHub App" 
+                  {...field} 
+                  onChange={e => field.onChange(parseInt(e.target.value))}
+                />
               </FormControl>
             </FormItem>
           )}
