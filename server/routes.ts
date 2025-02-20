@@ -82,41 +82,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { url, name, installationId } = req.body;
 
-      // Get repository contents using GitHub App installation token
-      const contents = await getRepositoryContent(installationId, url);
+      // Validate repository URL format
+      if (!url.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+/)) {
+        return res.status(400).json({
+          error: "Invalid repository URL",
+          message: "Please provide a valid GitHub repository URL (e.g., https://github.com/owner/repo)"
+        });
+      }
 
-      // Mock analysis results based on repository contents
-      const mockAnalysis = {
-        qualityScore: Math.floor(Math.random() * 100),
-        metrics: {
-          codeSmells: Math.floor(Math.random() * 50),
-          bugs: Math.floor(Math.random() * 20),
-          vulnerabilities: Math.floor(Math.random() * 10),
-          coverage: Math.floor(Math.random() * 100),
-        },
-        recommendations: [
-          "Consider adding more unit tests to improve coverage",
-          "Some functions could benefit from better error handling",
-          "Several code blocks could be refactored for better maintainability"
-        ],
-        files: contents.map(file => ({
-          name: file.name,
-          path: file.path,
-          type: file.type
-        }))
-      };
+      try {
+        // Get repository contents using GitHub App installation token
+        const contents = await getRepositoryContent(installationId, url);
 
-      // Validate the complete repository data before creating
-      const validatedData = insertRepositorySchema.parse({
-        url,
-        name,
-        installationId,
-        ...mockAnalysis
-      });
+        // Mock analysis results based on repository contents
+        const mockAnalysis = {
+          qualityScore: Math.floor(Math.random() * 100),
+          metrics: {
+            codeSmells: Math.floor(Math.random() * 50),
+            bugs: Math.floor(Math.random() * 20),
+            vulnerabilities: Math.floor(Math.random() * 10),
+            coverage: Math.floor(Math.random() * 100),
+          },
+          recommendations: [
+            "Consider adding more unit tests to improve coverage",
+            "Some functions could benefit from better error handling",
+            "Several code blocks could be refactored for better maintainability"
+          ],
+          files: contents.map(file => ({
+            name: file.name,
+            path: file.path,
+            type: file.type
+          }))
+        };
 
-      const repository = await storage.createRepository(validatedData);
-      res.json(repository);
-    } catch (error) {
+        // Validate the complete repository data before creating
+        const validatedData = insertRepositorySchema.parse({
+          url,
+          name,
+          installationId,
+          ...mockAnalysis
+        });
+
+        const repository = await storage.createRepository(validatedData);
+        res.json(repository);
+      } catch (error: any) {
+        if (error.status === 404) {
+          return res.status(404).json({
+            error: "Repository not found",
+            message: "Please verify that the repository exists and the GitHub App has access to it"
+          });
+        } else if (error.status === 401) {
+          return res.status(401).json({
+            error: "GitHub App not installed",
+            message: "Please install the GitHub App on your repository and provide the correct installation ID"
+          });
+        } else {
+          console.error('GitHub API error:', error);
+          return res.status(500).json({
+            error: "GitHub API error",
+            message: "Failed to fetch repository content. Please verify your GitHub App installation and permissions."
+          });
+        }
+      }
+    } catch (error: any) {
       console.error('Repository analysis error:', error);
       if (error.name === 'ZodError') {
         res.status(400).json({ 
