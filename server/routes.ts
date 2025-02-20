@@ -57,22 +57,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { action, installation, repositories = [] } = req.body;
 
       if (action === "created") {
-        await storage.createGithubInstallation({
-          installationId: installation.id,
-          accountName: installation.account.login,
-        });
+        try {
+          const installationData = insertGithubInstallationSchema.parse({
+            installationId: installation.id,
+            accountName: installation.account.login,
+          });
 
-        res.json({ message: "Installation recorded" });
+          await storage.createGithubInstallation(installationData);
+          res.json({ message: "Installation recorded" });
+        } catch (error) {
+          console.error('Installation validation error:', error);
+          res.status(400).json({ error: "Invalid installation data" });
+        }
+      } else {
+        res.status(200).end();
       }
+    } else {
+      res.status(200).end();
     }
-
-    res.status(200).end();
   });
 
   // Repository analysis endpoint
   app.post("/api/repositories", async (req, res) => {
     try {
-      const { url, name, installationId } = insertRepositorySchema.parse(req.body);
+      const { url, name, installationId } = req.body;
 
       // Get repository contents using GitHub App installation token
       const contents = await getRepositoryContent(installationId, url);
@@ -98,26 +106,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       };
 
-      const repository = await storage.createRepository({
+      // Validate the complete repository data before creating
+      const validatedData = insertRepositorySchema.parse({
         url,
         name,
         installationId,
         ...mockAnalysis
       });
 
+      const repository = await storage.createRepository(validatedData);
       res.json(repository);
     } catch (error) {
       console.error('Repository analysis error:', error);
-      res.status(400).json({ error: "Invalid repository data" });
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          error: "Invalid repository data",
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Failed to analyze repository",
+          message: error.message 
+        });
+      }
     }
   });
 
   app.get("/api/repositories/:id", async (req, res) => {
-    const repository = await storage.getRepository(parseInt(req.params.id));
-    if (!repository) {
-      return res.status(404).json({ error: "Repository not found" });
+    try {
+      const repository = await storage.getRepository(parseInt(req.params.id));
+      if (!repository) {
+        return res.status(404).json({ error: "Repository not found" });
+      }
+      res.json(repository);
+    } catch (error) {
+      console.error('Repository fetch error:', error);
+      res.status(500).json({ error: "Failed to fetch repository" });
     }
-    res.json(repository);
   });
 
   const httpServer = createServer(app);
