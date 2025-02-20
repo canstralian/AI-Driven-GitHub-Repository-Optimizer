@@ -5,20 +5,24 @@ if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
   throw new Error("GitHub App credentials not configured");
 }
 
-// Format private key by ensuring proper line breaks
+// Format private key by ensuring proper line breaks and format
 const formatPrivateKey = (key: string) => {
-  // If key already has proper format, return as is
-  if (key.includes("-----BEGIN RSA PRIVATE KEY-----") && key.includes("-----END RSA PRIVATE KEY-----")) {
-    return key;
-  }
+  // Remove any existing headers and footers
+  const cleanKey = key
+    .replace(/-----BEGIN.*PRIVATE KEY-----/, '')
+    .replace(/-----END.*PRIVATE KEY-----/, '')
+    .replace(/\\n/g, '')
+    .replace(/\s+/g, '');
 
-  // Add header and footer if missing
-  const keyContent = key
-    .replace(/\\n/g, "\n")
-    .replace(/-----BEGIN RSA PRIVATE KEY-----|\n|-----END RSA PRIVATE KEY-----/g, "")
-    .trim();
+  // Split the key into 64-character chunks
+  const chunks = cleanKey.match(/.{1,64}/g) || [];
 
-  return `-----BEGIN RSA PRIVATE KEY-----\n${keyContent}\n-----END RSA PRIVATE KEY-----`;
+  // Reconstruct the key with proper format
+  return [
+    '-----BEGIN RSA PRIVATE KEY-----',
+    ...chunks,
+    '-----END RSA PRIVATE KEY-----'
+  ].join('\n');
 };
 
 // Create an Octokit instance authenticated as the GitHub App
