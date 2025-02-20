@@ -4,6 +4,17 @@ import { storage } from "./storage";
 import { insertRepositorySchema, insertGithubInstallationSchema } from "@shared/schema";
 import { appOctokit, getRepositoryContent } from "./lib/github";
 import crypto from "crypto";
+import * as express from 'express';
+
+// Middleware to capture raw body
+function rawBodySaver(req: any, res: any, buf: Buffer) {
+  if (buf && buf.length) {
+    req.rawBody = buf;
+    // Add debug logging
+    console.log('Raw body length:', buf.length);
+    console.log('Raw body content:', buf.toString());
+  }
+}
 
 function verifyGithubWebhook(req: any, res: any, next: any) {
   if (!process.env.GITHUB_APP_WEBHOOK_SECRET) {
@@ -11,13 +22,21 @@ function verifyGithubWebhook(req: any, res: any, next: any) {
   }
 
   const signature = req.headers["x-hub-signature-256"];
-  const payload = JSON.stringify(req.body);
+
+  // Debug logging
+  console.log('Received signature:', signature);
+  console.log('Raw body available:', !!req.rawBody);
+
+  // Use the raw body instead of stringified JSON
   const hmac = crypto
     .createHmac("sha256", process.env.GITHUB_APP_WEBHOOK_SECRET)
-    .update(payload)
+    .update(req.rawBody)
     .digest("hex");
 
-  if (`sha256=${hmac}` !== signature) {
+  const calculatedSignature = `sha256=${hmac}`;
+  console.log('Calculated signature:', calculatedSignature);
+
+  if (calculatedSignature !== signature) {
     return res.status(401).json({ error: "Invalid webhook signature" });
   }
 
@@ -25,6 +44,11 @@ function verifyGithubWebhook(req: any, res: any, next: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure express to save raw body
+  app.use(express.json({
+    verify: rawBodySaver
+  }));
+
   // GitHub App webhook endpoint
   app.post("/api/webhooks/github", verifyGithubWebhook, async (req, res) => {
     const event = req.headers["x-github-event"];
