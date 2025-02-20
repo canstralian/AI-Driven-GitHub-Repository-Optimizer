@@ -5,12 +5,28 @@ if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_APP_PRIVATE_KEY) {
   throw new Error("GitHub App credentials not configured");
 }
 
+// Format private key by ensuring proper line breaks
+const formatPrivateKey = (key: string) => {
+  // If key already has proper format, return as is
+  if (key.includes("-----BEGIN RSA PRIVATE KEY-----") && key.includes("-----END RSA PRIVATE KEY-----")) {
+    return key;
+  }
+
+  // Add header and footer if missing
+  const keyContent = key
+    .replace(/\\n/g, "\n")
+    .replace(/-----BEGIN RSA PRIVATE KEY-----|\n|-----END RSA PRIVATE KEY-----/g, "")
+    .trim();
+
+  return `-----BEGIN RSA PRIVATE KEY-----\n${keyContent}\n-----END RSA PRIVATE KEY-----`;
+};
+
 // Create an Octokit instance authenticated as the GitHub App
 export const appOctokit = new Octokit({
   authStrategy: createAppAuth,
   auth: {
     appId: process.env.GITHUB_APP_ID,
-    privateKey: process.env.GITHUB_APP_PRIVATE_KEY,
+    privateKey: formatPrivateKey(process.env.GITHUB_APP_PRIVATE_KEY),
   },
 });
 
@@ -41,13 +57,18 @@ export function parseRepoUrl(url: string) {
 export async function getRepositoryContent(installationId: number, repoUrl: string) {
   const client = await createInstallationClient(installationId);
   const { owner, repo } = parseRepoUrl(repoUrl);
-  
-  // Get repository contents
-  const { data: contents } = await client.repos.getContent({
-    owner,
-    repo,
-    path: '',
-  });
 
-  return Array.isArray(contents) ? contents : [contents];
+  try {
+    // Get repository contents
+    const { data: contents } = await client.repos.getContent({
+      owner,
+      repo,
+      path: '',
+    });
+
+    return Array.isArray(contents) ? contents : [contents];
+  } catch (error: any) {
+    console.error('GitHub API error:', error);
+    throw error;
+  }
 }
