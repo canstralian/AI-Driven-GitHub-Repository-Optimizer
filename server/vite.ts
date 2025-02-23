@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import rateLimit from "express-rate-limit";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -80,6 +81,15 @@ export function serveStatic(app: Express) {
   }
 
   app.use(express.static(distPath));
+
+  // set up rate limiter: maximum of 100 requests per 15 minutes
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // max 100 requests per windowMs
+  });
+
+  // apply rate limiter to all requests
+  app.use(limiter);
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
